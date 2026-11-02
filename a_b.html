@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>幾 A 幾 B 數字猜測遊戲 - 版本一</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen py-10 px-4">
+    <div class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+        <!-- 標題與說明 -->
+        <h1 class="text-2xl font-bold text-center text-slate-800 mb-2">4D 幾 A 幾 B 猜數字</h1>
+        <p class="text-xs text-slate-500 text-center mb-6">版本一：基本遊戲與除錯模式</p>
+
+        <!-- 遊戲控制區（除錯模式開關與重開按鈕） -->
+        <div class="flex items-center justify-between bg-slate-50 p-3 rounded-lg mb-6 border border-slate-200">
+            <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="debugToggle" class="sr-only peer" onchange="toggleDebugMode()">
+                <div class="relative w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                <span class="ml-2 text-sm font-medium text-slate-700">除錯模式</span>
+            </label>
+            
+            <button onclick="initGame()" class="px-3 py-1.5 bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium rounded-md transition duration-150">
+                重新開始
+            </button>
+        </div>
+
+        <!-- 除錯顯示區域 -->
+        <div id="debugArea" class="hidden mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg text-center">
+            <span class="text-xs font-semibold text-amber-800 uppercase tracking-wider block mb-1">🔍 除錯模式：本局解答</span>
+            <span id="secretCodeDisplay" class="text-2xl font-mono font-bold tracking-widest text-amber-600">----</span>
+        </div>
+
+        <!-- 遊戲主要互動區 -->
+        <div id="gamePlayArea" class="space-y-4">
+            <div>
+                <label for="guessInput" class="block text-sm font-medium text-slate-700 mb-1">請輸入 4 個不重複數字：</label>
+                <div class="flex gap-2">
+                    <input type="text" id="guessInput" maxlength="4" placeholder="例如: 0123" 
+                           class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-lg tracking-widest font-mono"
+                           onkeydown="if(event.key === 'Enter') submitGuess()">
+                    <button id="submitBtn" onclick="submitGuess()" 
+                            class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition duration-150">
+                        送出
+                    </button>
+                </div>
+                <p id="errorMessage" class="text-xs text-red-500 mt-1 min-h-[1.25rem]"></p>
+            </div>
+
+            <!-- 當次結果顯示區 -->
+            <div id="resultBox" class="hidden p-4 rounded-lg text-center border">
+                <div class="text-sm text-slate-500 mb-1">猜測結果</div>
+                <div id="resultAB" class="text-3xl font-bold tracking-wider mb-1"></div>
+                <div id="resultText" class="text-sm font-medium"></div>
+            </div>
+        </div>
+
+        <!-- 遊戲完成結算區 -->
+        <div id="gameCompleteArea" class="hidden text-center py-6 space-y-3">
+            <div class="text-4xl">🎉</div>
+            <h2 class="text-xl font-bold text-emerald-600">恭喜答對！</h2>
+            <p class="text-sm text-slate-600">解答確實是 <span id="finalAnswer" class="font-mono font-bold text-slate-800"></span></p>
+            <button onclick="initGame()" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow transition duration-150">
+                再玩一局
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let secretAnswer = "";
+        let isGameFinished = false;
+
+        // 頁面載入時初始化
+        window.onload = function() {
+            initGame();
+        };
+
+        // 初始化遊戲
+        function initGame() {
+            secretAnswer = generateSecretNumber();
+            isGameFinished = false;
+            
+            // 重置 UI
+            document.getElementById('guessInput').value = '';
+            document.getElementById('guessInput').disabled = false;
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('errorMessage').innerText = '';
+            
+            document.getElementById('resultBox').classList.add('hidden');
+            document.getElementById('gameCompleteArea').classList.add('hidden');
+            document.getElementById('gamePlayArea').classList.remove('hidden');
+
+            // 預設關閉除錯模式開關
+            document.getElementById('debugToggle').checked = false;
+            updateDebugDisplay();
+
+            console.log("新一局答案已生成");
+        }
+
+        // 生成 4 位不重複數字（可 0 開頭）
+        function generateSecretNumber() {
+            const digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+            let result = '';
+            for (let i = 0; i < 4; i++) {
+                const randomIndex = Math.floor(Math.random() * digits.length);
+                result += digits[randomIndex];
+                digits.splice(randomIndex, 1);
+            }
+            return result;
+        }
+
+        // 切換除錯模式
+        function toggleDebugMode() {
+            updateDebugDisplay();
+        }
+
+        // 更新除錯顯示 UI
+        function updateDebugDisplay() {
+            const isDebug = document.getElementById('debugToggle').checked;
+            const debugArea = document.getElementById('debugArea');
+            const secretDisplay = document.getElementById('secretCodeDisplay');
+
+            if (isDebug) {
+                secretDisplay.innerText = secretAnswer;
+                debugArea.classList.remove('hidden');
+            } else {
+                debugArea.classList.add('hidden');
+            }
+        }
+
+        // 送出猜測並驗證
+        function submitGuess() {
+            if (isGameFinished) return;
+
+            const inputEl = document.getElementById('guessInput');
+            const errorEl = document.getElementById('errorMessage');
+            const val = inputEl.value.trim();
+
+            errorEl.innerText = '';
+
+            // 驗證規則檢查
+            if (val.length !== 4) {
+                errorEl.innerText = '⚠️ 請輸入正好 4 位數字！';
+                return;
+            }
+
+            if (!/^\d{4}$/.test(val)) {
+                errorEl.innerText = '⚠️ 請只輸入數字！';
+                return;
+            }
+
+            const uniqueSet = new Set(val.split(''));
+            if (uniqueSet.size !== 4) {
+                errorEl.innerText = '⚠️ 數字不能重複！';
+                return;
+            }
+
+            // 算 A/B
+            const result = calculateAB(val, secretAnswer);
+            displayResult(val, result.a, result.b);
+
+            // 清空輸入框
+            inputEl.value = '';
+
+            // 判斷是否全對 (4A0B)
+            if (result.a === 4) {
+                handleGameWin();
+            }
+        }
+
+        // 計算幾 A 幾 B
+        function calculateAB(guess, answer) {
+            let a = 0;
+            let b = 0;
+            for (let i = 0; i < 4; i++) {
+                if (guess[i] === answer[i]) {
+                    a++;
+                } else if (answer.includes(guess[i])) {
+                    b++;
+                }
+            }
+            return { a, b };
+        }
+
+        // 顯示結果
+        function displayResult(guess, a, b) {
+            const resultBox = document.getElementById('resultBox');
+            const resultAB = document.getElementById('resultAB');
+            const resultText = document.getElementById('resultText');
+
+            resultBox.classList.remove('hidden');
+            resultAB.innerText = `${a}A${b}B`;
+            resultText.innerText = `猜測: ${guess}`;
+
+            if (a === 4) {
+                resultBox.className = "p-4 rounded-lg text-center border bg-emerald-50 border-emerald-200 text-emerald-800";
+            } else {
+                resultBox.className = "p-4 rounded-lg text-center border bg-indigo-50 border-indigo-200 text-indigo-900";
+            }
+        }
+
+        // 處理猜中獲勝
+        function handleGameWin() {
+            isGameFinished = true;
+            document.getElementById('guessInput').disabled = true;
+            document.getElementById('submitBtn').disabled = true;
+            
+            document.getElementById('finalAnswer').innerText = secretAnswer;
+            document.getElementById('gameCompleteArea').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
